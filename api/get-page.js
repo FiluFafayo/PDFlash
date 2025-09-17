@@ -1,6 +1,6 @@
 // Impor "alat bantu" yang baru
 import { google } from 'googleapis';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import * as pdfjsLib from 'pdfjs-dist';
 import { createCanvas } from 'canvas';
 import fs from 'fs/promises';
 import path from 'path';
