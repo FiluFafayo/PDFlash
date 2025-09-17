@@ -3,47 +3,88 @@ document.addEventListener('DOMContentLoaded', () => {
     const folderUrlInput = document.getElementById('folder-url');
     const pdfGrid = document.getElementById('pdf-grid');
     const loader = document.getElementById('loader');
+    const breadcrumbsContainer = document.getElementById('breadcrumbs');
+
+    // "Memori" untuk menyimpan jejak navigasi kita
+    let navigationStack = [];
+    let rootFolderId = null;
+
+    // FUNGSI UNTUK MERENDER BREADCRUMBS
+    const renderBreadcrumbs = () => {
+        breadcrumbsContainer.innerHTML = '';
+        navigationStack.forEach((folder, index) => {
+            const link = document.createElement('a');
+            link.href = '#';
+            link.textContent = folder.name;
+            link.dataset.folderId = folder.id;
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Kembali ke folder yang diklik
+                const newStack = navigationStack.slice(0, index + 1);
+                navigationStack = newStack;
+                loadFolder(folder.id);
+            });
+            breadcrumbsContainer.appendChild(link);
+
+            if (index < navigationStack.length - 1) {
+                const separator = document.createElement('span');
+                separator.textContent = '>';
+                breadcrumbsContainer.appendChild(separator);
+            }
+        });
+    };
 
     // FUNGSI UTAMA UNTUK ME-LOAD FOLDER
-    const loadFolder = async (folderId) => {
-        if (!folderId) return;
-
+    const loadFolder = async (folderId, isRoot = false) => {
         loader.style.display = 'block';
         pdfGrid.innerHTML = '';
 
         try {
             const response = await fetch(`/api/get-files?folderId=${folderId}`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.details || 'Gagal memuat daftar file dari server.');
-            }
-            const files = await response.json();
+            if (!response.ok) throw new Error('Gagal memuat daftar file.');
+            const items = await response.json();
 
-            // BAGIAN BARU: Simpan "ingatan" di URL
+            // Update URL & Navigasi
             const newUrl = `/?folderId=${folderId}`;
-            // Cek agar tidak push state yang sama berulang kali
             if (window.location.search !== `?folderId=${folderId}`) {
                 window.history.pushState({ folderId }, '', newUrl);
             }
-            // Update juga nilai di input box
-            folderUrlInput.value = `https://drive.google.com/drive/folders/${folderId}`;
+            if (isRoot) {
+                rootFolderId = folderId;
+                navigationStack = [{ id: folderId, name: 'Home' }];
+            }
+            renderBreadcrumbs();
 
-            if (files.length === 0) {
-                pdfGrid.innerHTML = '<p>Tidak ada file PDF yang ditemukan di folder ini.</p>';
+            if (items.length === 0) {
+                pdfGrid.innerHTML = '<p>Folder ini kosong.</p>';
             } else {
-                files.forEach(file => {
-                    const card = document.createElement('a');
-                    card.href = `/viewer.html?fileId=${file.id}`;
-                    card.className = 'pdf-card';
+                items.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'item-card';
 
-                    const thumbnail = document.createElement('img');
-                    thumbnail.src = `/api/get-thumbnail?fileId=${file.id}`;
-                    thumbnail.alt = `Cover of ${file.name}`;
-                    
+                    const thumbnailDiv = document.createElement('div');
+                    thumbnailDiv.className = 'thumbnail';
+
+                    if (item.mimeType === 'application/pdf') {
+                        card.addEventListener('click', () => { window.location.href = `/viewer.html?fileId=${item.id}`; });
+                        const thumbnailImg = document.createElement('img');
+                        thumbnailImg.src = `/api/get-thumbnail?fileId=${item.id}`;
+                        thumbnailDiv.appendChild(thumbnailImg);
+                    } else if (item.mimeType === 'application/vnd.google-apps.folder') {
+                        card.addEventListener('click', () => {
+                            navigationStack.push({ id: item.id, name: item.name });
+                            loadFolder(item.id);
+                        });
+                        const folderIcon = document.createElement('div');
+                        folderIcon.className = 'folder-icon';
+                        folderIcon.textContent = '📁';
+                        thumbnailDiv.appendChild(folderIcon);
+                    }
+
                     const title = document.createElement('p');
-                    title.textContent = file.name.replace('.pdf', '');
+                    title.textContent = item.name.replace('.pdf', '');
 
-                    card.appendChild(thumbnail);
+                    card.appendChild(thumbnailDiv);
                     card.appendChild(title);
                     pdfGrid.appendChild(card);
                 });
@@ -59,12 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listener untuk tombol "Load"
     loadBtn.addEventListener('click', () => {
         const url = folderUrlInput.value;
-        if (!url) return alert('Masukkan URL folder terlebih dahulu.');
-        
+        if (!url) return;
         const folderId = extractFolderIdFromUrl(url);
-        if (!folderId) return alert('URL tidak valid. Pastikan formatnya benar.');
-        
-        loadFolder(folderId);
+        if (folderId) loadFolder(folderId, true);
     });
 
     function extractFolderIdFromUrl(url) {
@@ -72,11 +110,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return match ? match[1] : null;
     }
 
-    // BAGIAN BARU: Cek "ingatan" saat halaman pertama kali dibuka
+    // Cek URL saat halaman pertama kali dibuka
     const initialParams = new URLSearchParams(window.location.search);
     const initialFolderId = initialParams.get('folderId');
     if (initialFolderId) {
-        console.log(`Folder ID ditemukan di URL: ${initialFolderId}. Memuat otomatis...`);
-        loadFolder(initialFolderId);
+        // Asumsi folder dari URL adalah root
+        loadFolder(initialFolderId, true);
     }
 });

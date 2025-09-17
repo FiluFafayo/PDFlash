@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
 
-// Fungsi utama yang dipanggil Vercel
 export default async function handler(req, res) {
     const { folderId } = req.query;
 
@@ -18,50 +17,19 @@ export default async function handler(req, res) {
         });
         const drive = google.drive({ version: 'v3', auth });
 
-        // Mulai pencarian rekursif dari folder awal
-        const allFiles = await fetchFilesRecursively(drive, folderId);
-
-        // Urutkan hasilnya berdasarkan nama untuk konsistensi
-        allFiles.sort((a, b) => a.name.localeCompare(b.name));
+        const response = await drive.files.list({
+            // Ambil SEMUA item (PDF dan Folder) di dalam folderId
+            q: `'${folderId}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.google-apps.folder')`,
+            // Kita butuh mimeType untuk membedakan item
+            fields: 'files(id, name, mimeType)',
+            orderBy: 'folder, name', // Urutkan folder dulu, baru file
+        });
         
-        res.status(200).json(allFiles);
+        // Langsung kirim apa adanya
+        res.status(200).json(response.data.files);
 
     } catch (error) {
         console.error('Error in get-files:', error);
         res.status(500).json({ error: 'Gagal mengambil daftar file', details: error.message });
     }
-}
-
-// FUNGSI REKURSIF: "Penyelam" folder kita
-async function fetchFilesRecursively(drive, folderId) {
-    let filesFound = [];
-    let pageToken = null;
-
-    do {
-        const response = await drive.files.list({
-            q: `'${folderId}' in parents`,
-            fields: 'nextPageToken, files(id, name, mimeType)',
-            pageToken: pageToken,
-            pageSize: 1000 // Ambil maksimal item per panggilan
-        });
-
-        const items = response.data.files;
-
-        for (const item of items) {
-            if (item.mimeType === 'application/pdf') {
-                // Jika ini PDF, tambahkan ke hasil
-                filesFound.push({ id: item.id, name: item.name });
-            } else if (item.mimeType === 'application/vnd.google-apps.folder') {
-                // Jika ini folder, "selami" lebih dalam!
-                console.log(`Menyelami subfolder: ${item.name}`);
-                const subfolderFiles = await fetchFilesRecursively(drive, item.id);
-                // Gabungkan hasil dari subfolder ke daftar utama
-                filesFound = filesFound.concat(subfolderFiles);
-            }
-        }
-
-        pageToken = response.data.nextPageToken;
-    } while (pageToken);
-
-    return filesFound;
 }
