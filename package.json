@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "googleapis": "^126.0.1",
-    "pdf-poppler": "^0.2.1"
+    "pdfjs-dist": "4.0.379",
+    "canvas": "^2.11.2"
   }
 }
