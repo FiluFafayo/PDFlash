@@ -1,0 +1,11 @@
+{
+  "name": "pdflash",
+  "version": "1.0.0",
+  "description": "Aplikasi web untuk melihat PDF super cepat",
+  "main": "index.html",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "author": "",
+  "license": "ISC"
+}
