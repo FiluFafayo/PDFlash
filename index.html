@@ -159,6 +159,32 @@
             color: var(--border-color);
         }
 
+        .history {
+            margin-bottom: 40px;
+        }
+        .history h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: var(--text-color);
+            opacity: 0.7;
+        }
+        .history-list a {
+            display: inline-block;
+            background: var(--input-bg);
+            color: var(--text-color);
+            padding: 8px 15px;
+            border-radius: 20px;
+            text-decoration: none;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .history-list a:hover {
+            background: var(--border-color);
+        }
+
         /* Responsif */
         @media (max-width: 600px) {
             body {
@@ -188,6 +214,13 @@
         <input type="text" id="folder-url" placeholder="https://drive.google.com/drive/folders/...">
         <button id="load-btn">Load</button>
     </div>
+
+    <div id="history-section" class="history" style="display: none;">
+        <h3>Terakhir Dikunjungi:</h3>
+        <div id="history-list" class="history-list">
+            </div>
+    </div>
+
 
     <div id="loader" class="loader" style="display: none;">
         <p>Mencari file...</p>
