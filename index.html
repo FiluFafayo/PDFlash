@@ -3,9 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDFlash</title>
+    <title>PDFlash - Instant PDF Viewer</title>
+    <style>
+        /* CSS sederhana untuk tahap ini, nanti kita percantik di Tahap 4 */
+        body { font-family: sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; }
+        .input-area { display: flex; gap: 10px; margin-bottom: 30px; }
+        #folder-url { flex-grow: 1; padding: 10px; }
+        #load-btn { padding: 10px 20px; }
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 20px; }
+        .pdf-card { border: 1px solid #ddd; text-align: center; }
+        .pdf-card img { max-width: 100%; height: auto; background-color: #f0f0f0; }
+        .pdf-card p { padding: 10px; margin: 0; font-size: 14px; }
+        .loader { text-align: center; }
+    </style>
 </head>
 <body>
-    <h1>Halo Dunia dari PDFlash! ⚡</h1>
+    <h1>PDFlash ⚡</h1>
+    <p>Masukkan URL folder Google Drive publik untuk memulai.</p>
+    
+    <div class="input-area">
+        <input type="text" id="folder-url" placeholder="https://drive.google.com/drive/folders/...">
+        <button id="load-btn">Load</button>
+    </div>
+
+    <div id="loader" class="loader" style="display: none;">
+        <p>Mencari file...</p>
+    </div>
+
+    <div id="pdf-grid" class="grid-container">
+        </div>
+
+    <script src="/scripts/main.js"></script>
 </body>
 </html>
