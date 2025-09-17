@@ -1,9 +1,14 @@
+// Panggil versi 'legacy' yang tidak butuh worker
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+
+// Impor library lainnya seperti biasa
 import { google } from 'googleapis';
 import { createCanvas } from 'canvas';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
+// Helper function untuk mengubah stream menjadi buffer
 async function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -13,9 +18,8 @@ async function streamToBuffer(stream) {
   });
 }
 
+// Fungsi utama
 export default async function handler(req, res) {
-  const pdfjsLib = await import('pdfjs-dist');
-
   try {
     const { fileId, page } = req.query;
     if (!fileId) {
@@ -38,7 +42,6 @@ export default async function handler(req, res) {
     );
     const pdfBuffer = await streamToBuffer(response.data);
 
-    // INI BAGIAN YANG DIPERBAIKI
     const doc = await pdfjsLib.getDocument(new Uint8Array(pdfBuffer)).promise;
     
     if (pageNum > doc.numPages) {
