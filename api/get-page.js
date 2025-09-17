@@ -1,7 +1,6 @@
 const pdfjsLib = require('pdfjs-dist');
 pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
-// UBAH IMPORT INI: kita butuh 'list' bukan 'head'
 import { list, put } from '@vercel/blob';
 import { google } from 'googleapis';
 import { createCanvas, DOMMatrix } from 'canvas';
@@ -28,14 +27,11 @@ export default async function handler(req, res) {
         }
         
         const pageNum = parseInt(page);
+        // INI NAMA FILE YANG BENAR YANG AKAN KITA GUNAKAN
         const blobPath = `${fileId}/${pageNum}.jpeg`;
 
-        // --- METODE PENGECEKAN BARU YANG LEBIH HANDAL ---
-        // Minta daftar file yang cocok persis dengan path kita
         const { blobs } = await list({ prefix: blobPath, limit: 1 });
-        // Jika hasilnya tidak kosong, berarti file ada
         const blobInfo = blobs.length > 0 ? blobs[0] : null;
-        // --- AKHIR METODE PENGECEKAN BARU ---
         
         if (blobInfo) {
             console.log(`Cache hit for ${blobPath}. Redirecting to blob URL.`);
@@ -73,6 +69,7 @@ export default async function handler(req, res) {
 
         const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 80 });
 
+        // Kode 'put' akan menggunakan nama file yang benar
         await put(blobPath, imageBuffer, {
             access: 'public',
             cacheControl: 'public, max-age=31536000, immutable'
