@@ -1,5 +1,7 @@
 // Panggil library versi 2
 const pdfjsLib = require('pdfjs-dist');
+// KONFIGURASI PENTING UNTUK MEMATIKAN WORKER
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.entry.js');
 
 // Impor library lainnya
 import { google } from 'googleapis';
@@ -42,7 +44,6 @@ export default async function handler(req, res) {
     );
     const pdfBuffer = await streamToBuffer(response.data);
 
-    // Versi 2 juga butuh Uint8Array, jadi baris ini tetap
     const doc = await pdfjsLib.getDocument(new Uint8Array(pdfBuffer)).promise;
     
     if (pageNum > doc.numPages) {
@@ -52,15 +53,12 @@ export default async function handler(req, res) {
     
     const viewport = pdfPage.getViewport({ scale: 1.5 });
     
-    // Canvas Node.js butuh polyfill untuk createObjectURL
-    const canvasAndContext = {
-        canvas: createCanvas(viewport.width, viewport.height),
-        get context() { return this.canvas.getContext('2d'); }
-    };
+    const canvas = createCanvas(viewport.width, viewport.height);
+    const context = canvas.getContext('2d');
 
-    await pdfPage.render({ canvasContext: canvasAndContext.context, viewport: viewport }).promise;
+    await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
 
-    const imageBuffer = canvasAndContext.canvas.toBuffer('image/png');
+    const imageBuffer = canvas.toBuffer('image/png');
     
     res.setHeader('Content-Type', 'image/png');
     res.status(200).send(imageBuffer);
