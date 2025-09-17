@@ -1,5 +1,5 @@
 const pdfjsLib = require('pdfjs-dist');
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('resolve')('pdfjs-dist/build/pdf.worker.js');
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
 import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
