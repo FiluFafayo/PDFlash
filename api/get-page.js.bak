@@ -1,5 +1,5 @@
 const pdfjsLib = require('pdfjs-dist');
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('resolve')('pdfjs-dist/build/pdf.worker.js');
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
 import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
@@ -27,22 +27,10 @@ export default async function handler(req, res) {
         }
         
         const pageNum = parseInt(page);
+        // PERUBAHAN 1: Ganti path ke .jpeg
         const blobPath = `${fileId}/${pageNum}.jpeg`;
 
-        // --- BLOK INVESTIGASI DIMULAI ---
-        let blobInfo = null;
-        try {
-            // Coba intip "kulkas"
-            blobInfo = await head(blobPath);
-        } catch (error) {
-            // Jika errornya BUKAN "tidak ditemukan" (404), maka ini masalah serius!
-            if (error.status !== 404) {
-                // Ini adalah "CCTV" kita. Kita catat errornya di log Vercel.
-                console.error("DEBUG: Error saat mengecek Blob, BUKAN 404:", error);
-            }
-            // Jika errornya 404 (tidak ditemukan), kita anggap saja cache miss biasa.
-        }
-        // --- BLOK INVESTIGASI SELESAI ---
+        const blobInfo = await head(blobPath).catch(err => null);
 
         if (blobInfo) {
             console.log(`Cache hit for ${blobPath}. Redirecting to blob URL.`);
@@ -78,6 +66,7 @@ export default async function handler(req, res) {
         const context = canvas.getContext('2d');
         await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
 
+        // PERUBAHAN 2: Ganti format buffer ke .jpeg
         const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 80 });
 
         await put(blobPath, imageBuffer, {
@@ -85,6 +74,7 @@ export default async function handler(req, res) {
             cacheControl: 'public, max-age=31536000, immutable'
         });
         
+        // PERUBAHAN 3: Ganti header ke .jpeg
         res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('X-Total-Pages', doc.numPages);
         res.status(200).send(imageBuffer);
