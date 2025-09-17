@@ -1,14 +1,14 @@
-// Panggil versi 'legacy' yang tidak butuh worker
-const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+// Panggil library versi 2
+const pdfjsLib = require('pdfjs-dist');
 
-// Impor library lainnya seperti biasa
+// Impor library lainnya
 import { google } from 'googleapis';
 import { createCanvas } from 'canvas';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
-// Helper function untuk mengubah stream menjadi buffer
+// Helper function (tetap sama)
 async function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -42,6 +42,7 @@ export default async function handler(req, res) {
     );
     const pdfBuffer = await streamToBuffer(response.data);
 
+    // Versi 2 juga butuh Uint8Array, jadi baris ini tetap
     const doc = await pdfjsLib.getDocument(new Uint8Array(pdfBuffer)).promise;
     
     if (pageNum > doc.numPages) {
@@ -51,12 +52,15 @@ export default async function handler(req, res) {
     
     const viewport = pdfPage.getViewport({ scale: 1.5 });
     
-    const canvas = createCanvas(viewport.width, viewport.height);
-    const context = canvas.getContext('2d');
+    // Canvas Node.js butuh polyfill untuk createObjectURL
+    const canvasAndContext = {
+        canvas: createCanvas(viewport.width, viewport.height),
+        get context() { return this.canvas.getContext('2d'); }
+    };
 
-    await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
+    await pdfPage.render({ canvasContext: canvasAndContext.context, viewport: viewport }).promise;
 
-    const imageBuffer = canvas.toBuffer('image/png');
+    const imageBuffer = canvasAndContext.canvas.toBuffer('image/png');
     
     res.setHeader('Content-Type', 'image/png');
     res.status(200).send(imageBuffer);
