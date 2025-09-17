@@ -1,20 +1,16 @@
-// Panggil library versi 2 yang stabil
 const pdfjsLib = require('pdfjs-dist');
-// Konfigurasi penting untuk mematikan worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = require('pdfjs-dist/build/pdf.worker.js');
+pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
-// Impor library lainnya
+// Impor "alat bantu" untuk Vercel Blob
+import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
-// UBAH BARIS INI: Keluarkan DOMMatrix dari canvas
 import { createCanvas, DOMMatrix } from 'canvas';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
-// TAMBAHKAN BARIS INI: Sediakan DOMMatrix di lingkungan global
 global.DOMMatrix = DOMMatrix;
 
-// Helper function untuk mengubah stream menjadi buffer
 async function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -24,7 +20,6 @@ async function streamToBuffer(stream) {
   });
 }
 
-// Fungsi utama
 export default async function handler(req, res) {
     try {
         const { fileId, page } = req.query;
