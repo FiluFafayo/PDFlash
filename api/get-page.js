@@ -22,29 +22,36 @@ async function streamToBuffer(stream) {
 export default async function handler(req, res) {
     try {
         const { fileId, page } = req.query;
+        
+        // Input validation
         if (!fileId || !page) {
             return res.status(400).json({ error: 'File ID dan nomor halaman dibutuhkan' });
         }
         
+        if (!/^[a-zA-Z0-9_-]+$/.test(fileId) || !/^\d+$/.test(page)) {
+            return res.status(400).json({ error: 'Format File ID atau halaman tidak valid' });
+        }
+        
         const pageNum = parseInt(page);
         
-        // --- INI BAGIAN YANG DIPERBAIKI ---
-        // 1. Path untuk PENCARIAN (tanpa ekstensi file)
+        // Cache detection logic
         const blobPrefix = `${fileId}/${pageNum}`;
-        // 2. Path untuk UPLOAD (lengkap dengan ekstensi file)
         const blobUploadPath = `${fileId}/${pageNum}.jpeg`;
 
-        // Gunakan 'blobPrefix' untuk mencari cache
-        const { blobs } = await list({ prefix: blobPrefix, limit: 1 });
-        const blobInfo = blobs.length > 0 ? blobs[0] : null;
+        // Search for blobs with this prefix and .jpeg extension
+        const { blobs } = await list({ prefix: blobPrefix, limit: 10 });
+        const blobInfo = blobs.find(blob => 
+            blob.pathname.startsWith(blobPrefix) && 
+            blob.pathname.endsWith('.jpeg')
+        );
         
         if (blobInfo) {
-            console.log(`Cache hit for prefix ${blobPrefix}. Redirecting to ${blobInfo.url}`);
+            console.log(`Cache HIT: ${fileId}/${pageNum} -> ${blobInfo.url}`);
             return res.redirect(307, blobInfo.url);
         }
-        // --- AKHIR BAGIAN PERBAIKAN ---
-
-        console.log(`Cache miss for prefix ${blobPrefix}. Generating page...`);
+        
+        console.log(`Cache MISS: ${fileId}/${pageNum}. Generating...`);
+        console.log(`Available blobs:`, blobs.map(b => b.pathname));
         
         const auth = new google.auth.GoogleAuth({
             credentials: {
@@ -75,11 +82,12 @@ export default async function handler(req, res) {
 
         const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 80 });
 
-        // Saat upload, gunakan path yang lengkap
-        await put(blobUploadPath, imageBuffer, {
+        const blob = await put(blobUploadPath, imageBuffer, {
             access: 'public',
             cacheControl: 'public, max-age=31536000, immutable'
         });
+        
+        console.log(`Uploaded to blob: ${blob.url}`);
         
         res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('X-Total-Pages', doc.numPages);
