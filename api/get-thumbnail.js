@@ -12,12 +12,12 @@ import os from 'os';
 
 // Helper function (tetap sama)
 async function streamToBuffer(stream) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks)));
-  });
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+    });
 }
 
 // Fungsi utama
@@ -45,21 +45,21 @@ export default async function handler(req, res) {
         const pdfBuffer = await streamToBuffer(response.data);
 
         const doc = await pdfjsLib.getDocument(new Uint8Array(pdfBuffer)).promise;
-        
+
         if (pageNum > doc.numPages) {
             return res.status(400).json({ error: `Halaman tidak valid. PDF ini hanya punya ${doc.numPages} halaman.` });
         }
         const pdfPage = await doc.getPage(pageNum);
-        
+
         const viewport = pdfPage.getViewport({ scale: 0.4 });
-        
+
         const canvas = createCanvas(viewport.width, viewport.height);
         const context = canvas.getContext('2d');
 
         await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
 
         const imageBuffer = canvas.toBuffer('image/png');
-        
+
         res.setHeader('Content-Type', 'image/png');
         res.status(200).send(imageBuffer);
 

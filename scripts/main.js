@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const thumbnail = document.createElement('img');
                     thumbnail.src = `/api/get-thumbnail?fileId=${file.id}`;
                     thumbnail.alt = `Cover of ${file.name}`;
-                    
+
                     const title = document.createElement('p');
                     title.textContent = file.name.replace('.pdf', '');
 

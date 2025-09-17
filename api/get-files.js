@@ -22,7 +22,7 @@ export default async function handler(req, res) {
             fields: 'files(id, name)',
             orderBy: 'name',
         });
-        
+
         res.status(200).json(response.data.files);
     } catch (error) {
         console.error(error);
