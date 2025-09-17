@@ -1,7 +1,8 @@
 const pdfjsLib = require('pdfjs-dist');
 pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
-import { head, put } from '@vercel/blob';
+// UBAH IMPORT INI: kita butuh 'list' bukan 'head'
+import { list, put } from '@vercel/blob';
 import { google } from 'googleapis';
 import { createCanvas, DOMMatrix } from 'canvas';
 import fs from 'fs/promises';
@@ -29,21 +30,13 @@ export default async function handler(req, res) {
         const pageNum = parseInt(page);
         const blobPath = `${fileId}/${pageNum}.jpeg`;
 
-        // --- BLOK INVESTIGASI DIMULAI ---
-        let blobInfo = null;
-        try {
-            // Coba intip "kulkas"
-            blobInfo = await head(blobPath);
-        } catch (error) {
-            // Jika errornya BUKAN "tidak ditemukan" (404), maka ini masalah serius!
-            if (error.status !== 404) {
-                // Ini adalah "CCTV" kita. Kita catat errornya di log Vercel.
-                console.error("DEBUG: Error saat mengecek Blob, BUKAN 404:", error);
-            }
-            // Jika errornya 404 (tidak ditemukan), kita anggap saja cache miss biasa.
-        }
-        // --- BLOK INVESTIGASI SELESAI ---
-
+        // --- METODE PENGECEKAN BARU YANG LEBIH HANDAL ---
+        // Minta daftar file yang cocok persis dengan path kita
+        const { blobs } = await list({ prefix: blobPath, limit: 1 });
+        // Jika hasilnya tidak kosong, berarti file ada
+        const blobInfo = blobs.length > 0 ? blobs[0] : null;
+        // --- AKHIR METODE PENGECEKAN BARU ---
+        
         if (blobInfo) {
             console.log(`Cache hit for ${blobPath}. Redirecting to blob URL.`);
             return res.redirect(307, blobInfo.url);
