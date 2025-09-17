@@ -1,27 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reading... | PDFlash</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
     <style>
-        /* CSS untuk viewer */
-        body { margin: 0; background-color: #333; font-family: sans-serif; }
-        .swiper { width: 100%; height: 100vh; }
-        .swiper-slide { display: flex; justify-content: center; align-items: center; }
-        .swiper-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .swiper-button-prev, .swiper-button-next { color: white; }
-        .loader-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; color: white; z-index: 10; }
-        .back-button { position: fixed; top: 20px; left: 20px; z-index: 10; background: rgba(0,0,0,0.5); color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; }
+        :root {
+            --bg-color: #333333;
+            --text-color: #e0e0e0;
+            --btn-bg: rgba(0, 0, 0, 0.5);
+        }
+
+        .dark-mode {
+            --bg-color: #121212;
+            --btn-bg: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: background-color 0.3s;
+        }
+
+        .swiper {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .swiper-slide {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .swiper-slide img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .swiper-button-prev,
+        .swiper-button-next {
+            color: var(--text-color);
+        }
+
+        .loader-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-color);
+            z-index: 20;
+        }
+
+        .top-bar {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .top-bar a,
+        .top-bar button {
+            background: var(--btn-bg);
+            color: var(--text-color);
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+        }
     </style>
 </head>
+
 <body>
-    <a href="/" class="back-button">← Back</a>
-    
+    <div class="top-bar">
+        <a href="/" class="back-button">← Back to List</a>
+        <button id="theme-toggle" class="theme-switch">🌙</button>
+    </div>
+
     <div class="swiper">
-        <div class="swiper-wrapper">
-            </div>
+        <div class="swiper-wrapper"></div>
         <div class="swiper-button-prev"></div>
         <div class="swiper-button-next"></div>
     </div>
@@ -31,6 +105,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script src="/scripts/theme.js"></script>
     <script src="/scripts/viewer.js"></script>
 </body>
+
 </html>
