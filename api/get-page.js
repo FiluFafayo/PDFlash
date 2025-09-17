@@ -1,7 +1,6 @@
 const pdfjsLib = require('pdfjs-dist');
 pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
-// Impor "alat bantu" untuk Vercel Blob
 import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
 import { createCanvas, DOMMatrix } from 'canvas';
@@ -28,7 +27,8 @@ export default async function handler(req, res) {
         }
         
         const pageNum = parseInt(page);
-        const blobPath = `${fileId}/${pageNum}.webp`;
+        // PERUBAHAN 1: Ganti path ke .jpeg
+        const blobPath = `${fileId}/${pageNum}.jpeg`;
 
         const blobInfo = await head(blobPath).catch(err => null);
 
@@ -66,14 +66,16 @@ export default async function handler(req, res) {
         const context = canvas.getContext('2d');
         await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
 
-        const imageBuffer = canvas.toBuffer('image/webp', { quality: 80 });
+        // PERUBAHAN 2: Ganti format buffer ke .jpeg
+        const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 80 });
 
         await put(blobPath, imageBuffer, {
             access: 'public',
             cacheControl: 'public, max-age=31536000, immutable'
         });
         
-        res.setHeader('Content-Type', 'image/webp');
+        // PERUBAHAN 3: Ganti header ke .jpeg
+        res.setHeader('Content-Type', 'image/jpeg');
         res.setHeader('X-Total-Pages', doc.numPages);
         res.status(200).send(imageBuffer);
 
