@@ -7,5 +7,9 @@
     "start": "vercel dev"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "googleapis": "^126.0.1",
+    "pdf-poppler": "^0.2.1"
+  }
 }
