@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@vercel/blob": "^0.23.2",
     "googleapis": "^126.0.1",
     "pdfjs-dist": "2.16.105",
     "canvas": "^2.11.2"

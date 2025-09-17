@@ -3,32 +3,46 @@ const pdfjsLib = require('pdfjs-dist');
 // Konfigurasi penting untuk mematikan worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.js');
 
-// Impor library lainnya
+// Impor "alat bantu" baru untuk Vercel Blob
+import { head, put } from '@vercel/blob';
+
 import { google } from 'googleapis';
 import { createCanvas } from 'canvas';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
 
-// Helper function untuk mengubah stream menjadi buffer
+// Helper function tetap sama
 async function streamToBuffer(stream) {
-    return new Promise((resolve, reject) => {
-        const chunks = [];
-        stream.on('data', (chunk) => chunks.push(chunk));
-        stream.on('error', reject);
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-    });
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+  });
 }
 
-// Fungsi utama
+// Fungsi utama versi BARU yang lebih pintar
 export default async function handler(req, res) {
     try {
         const { fileId, page } = req.query;
-        if (!fileId) {
-            return res.status(400).json({ error: 'File ID tidak ditemukan' });
+        if (!fileId || !page) {
+            return res.status(400).json({ error: 'File ID dan nomor halaman dibutuhkan' });
         }
-        const pageNum = parseInt(page) || 1;
+        
+        const pageNum = parseInt(page);
+        // Nama file di "kulkas" kita. Format: ID_PDF/halaman.webp
+        const blobPath = `${fileId}/${pageNum}.webp`;
 
+        // 1. CEK "KULKAS" (VERCEL BLOB)
+        const blobInfo = await head(blobPath).catch(err => null);
+
+        if (blobInfo) {
+            // JIKA ADA: Langsung alihkan ke URL gambar yang sudah jadi. Super cepat!
+            console.log(`Cache hit for ${blobPath}. Redirecting to blob URL.`);
+            return res.redirect(307, blobInfo.url);
+        }
+
+        // 2. JIKA TIDAK ADA, "MASAK" HALAMANNYA
+        console.log(`Cache miss for ${blobPath}. Generating page...`);
+        
         const auth = new google.auth.GoogleAuth({
             credentials: {
                 client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -43,32 +57,34 @@ export default async function handler(req, res) {
             { responseType: 'stream' }
         );
         const pdfBuffer = await streamToBuffer(response.data);
-
         const doc = await pdfjsLib.getDocument(new Uint8Array(pdfBuffer)).promise;
 
         if (pageNum > doc.numPages) {
-            return res.status(400).json({ error: `Halaman tidak valid. PDF ini hanya punya ${doc.numPages} halaman.` });
+            return res.status(400).json({ error: `Halaman tidak valid.` });
         }
+        
         const pdfPage = await doc.getPage(pageNum);
-
         const viewport = pdfPage.getViewport({ scale: 1.5 });
+        const canvas = createCanvas(viewport.width, viewport.height);
+        const context = canvas.getContext('2d');
+        await pdfPage.render({ canvasContext: context, viewport: viewport }).promise;
 
-        const canvasAndContext = {
-            canvas: createCanvas(viewport.width, viewport.height),
-            get context() { return this.canvas.getContext('2d'); }
-        };
+        // Gunakan format .webp yang lebih efisien dan kualitas 80%
+        const imageBuffer = canvas.toBuffer('image/webp', { quality: 80 });
 
-        await pdfPage.render({ canvasContext: canvasAndContext.context, viewport: viewport }).promise;
-
-        const imageBuffer = canvasAndContext.canvas.toBuffer('image/png');
-
-        res.setHeader('Content-Type', 'image/png');
-        // Fitur dari Tahap 3: Kirim total halaman di header
+        // 3. SIMPAN HASIL "MASAKAN" KE KULKAS
+        await put(blobPath, imageBuffer, {
+            access: 'public',
+            cacheControl: 'public, max-age=31536000, immutable' // Cache di browser selama setahun
+        });
+        
+        // 4. Sajikan hasil masakan yang baru jadi
+        res.setHeader('Content-Type', 'image/webp');
         res.setHeader('X-Total-Pages', doc.numPages);
         res.status(200).send(imageBuffer);
 
     } catch (error) {
-        console.error(error);
+        console.error('Error in get-page:', error);
         res.status(500).json({ error: 'Terjadi kesalahan di server', details: error.message });
     }
 }
