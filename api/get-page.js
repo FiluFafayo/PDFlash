@@ -27,18 +27,24 @@ export default async function handler(req, res) {
         }
         
         const pageNum = parseInt(page);
-        // INI NAMA FILE YANG BENAR YANG AKAN KITA GUNAKAN
-        const blobPath = `${fileId}/${pageNum}.jpeg`;
+        
+        // --- INI BAGIAN YANG DIPERBAIKI ---
+        // 1. Path untuk PENCARIAN (tanpa ekstensi file)
+        const blobPrefix = `${fileId}/${pageNum}`;
+        // 2. Path untuk UPLOAD (lengkap dengan ekstensi file)
+        const blobUploadPath = `${fileId}/${pageNum}.jpeg`;
 
-        const { blobs } = await list({ prefix: blobPath, limit: 1 });
+        // Gunakan 'blobPrefix' untuk mencari cache
+        const { blobs } = await list({ prefix: blobPrefix, limit: 1 });
         const blobInfo = blobs.length > 0 ? blobs[0] : null;
         
         if (blobInfo) {
-            console.log(`Cache hit for ${blobPath}. Redirecting to blob URL.`);
+            console.log(`Cache hit for prefix ${blobPrefix}. Redirecting to ${blobInfo.url}`);
             return res.redirect(307, blobInfo.url);
         }
+        // --- AKHIR BAGIAN PERBAIKAN ---
 
-        console.log(`Cache miss for ${blobPath}. Generating page...`);
+        console.log(`Cache miss for prefix ${blobPrefix}. Generating page...`);
         
         const auth = new google.auth.GoogleAuth({
             credentials: {
@@ -69,8 +75,8 @@ export default async function handler(req, res) {
 
         const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 80 });
 
-        // Kode 'put' akan menggunakan nama file yang benar
-        await put(blobPath, imageBuffer, {
+        // Saat upload, gunakan path yang lengkap
+        await put(blobUploadPath, imageBuffer, {
             access: 'public',
             cacheControl: 'public, max-age=31536000, immutable'
         });
