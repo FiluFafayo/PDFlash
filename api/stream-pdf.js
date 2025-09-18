@@ -52,10 +52,26 @@ export default async function handler(req, res) {
         const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
         await pipeline(response.data, require('fs').createWriteStream(originalPath));
         
+        // --- BAGIAN YANG DIPERBAIKI ---
+        const binaryDir = path.join(process.cwd(), 'api', '_bin');
+        const qpdfPath = path.join(binaryDir, 'qpdf');
+
+        // Fungsi untuk optimasi PDF dengan qpdf dari lokasi lokal
+        const optimizePdf = async () => {
+            await execFileAsync(
+                qpdfPath, // Jalankan qpdf dari path spesifik kita
+                ['--linearize', originalPath, optimizedPath],
+                {
+                    // Beritahu qpdf di mana "onderdil"-nya berada
+                    env: { ...process.env, 'LD_LIBRARY_PATH': binaryDir }
+                }
+            );
+        };
+
         // HANYA jalankan optimasi PDF
-        await execFileAsync('qpdf', ['--linearize', originalPath, optimizedPath]);
+        await optimizePdf();
         
-        // Upload hasilnya ke Vercel Blob menggunakan stream agar hemat memori
+        // Upload hasilnya ke Vercel Blob menggunakan stream
         const optimizedFileStream = createReadStream(optimizedPath);
         const uploadedPdf = await put(optimizedPdfPath, optimizedFileStream, {
             access: 'public',
@@ -64,8 +80,8 @@ export default async function handler(req, res) {
         
         console.log(`Successfully optimized and uploaded PDF for ${fileId}`);
         
-        // Arahkan pengguna ke PDF yang sudah optimal
         res.redirect(307, uploadedPdf.url);
+        // --- AKHIR BAGIAN YANG DIPERBAIKI ---
 
     } catch (error) {
         console.error('PDF processing error:', error);
