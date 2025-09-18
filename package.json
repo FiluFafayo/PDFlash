@@ -4,8 +4,7 @@
   "description": "Aplikasi web untuk melihat PDF super cepat",
   "main": "index.html",
   "scripts": {
-    "start": "vercel dev",
-    "vercel-build": "./build.sh"
+    "start": "vercel dev"
   },
   "author": "",
   "license": "ISC",
