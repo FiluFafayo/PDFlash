@@ -1,14 +1,20 @@
 #!/bin/bash
 
-# Memberi tahu log bahwa proses instalasi kustom dimulai
-echo ">>> Installing custom dependencies with YUM: qpdf"
+# Aktifkan 'mode tegas': jika ada perintah yang gagal, script langsung berhenti.
+set -e
 
-# Menjalankan instalasi qpdf menggunakan YUM (tanpa sudo)
+echo ">>> Starting robust build script..."
+
+echo ">>> Attempting to install qpdf with YUM..."
+# Kita jalankan instalasi qpdf
 yum install -y qpdf
+echo ">>> YUM command finished."
 
-# Memberi tahu log bahwa instalasi kustom selesai
-echo ">>> Custom dependencies installed."
+# Verifikasi apakah qpdf sudah ter-install dan bisa ditemukan
+echo ">>> Verifying qpdf installation..."
+command -v qpdf
+echo ">>> qpdf has been successfully installed at the path above."
 
-# Menjalankan instalasi standar npm
-echo ">>> Running npm install..."
+echo ">>> Running standard npm install..."
 npm install
+echo ">>> Build script finished successfully."
