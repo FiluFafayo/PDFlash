@@ -24,13 +24,20 @@ export default async function handler(req, res) {
         console.log(`Optimized PDF CACHE HIT for ${fileId}`);
         return res.redirect(307, blob.url);
     } catch (error) {
-        // GANTI KONDISI DI BAWAH INI
+        // --- TAMBAHKAN KODE DEBUG INI ---
+        console.log("--- DEBUGGING ERROR OBJECT ---");
+        console.log("Tipe error:", typeof error);
+        console.log("Nama error:", error.name);
+        console.log("Pesan error:", error.message);
+        console.log("Apakah nama === 'BlobNotFoundError'?", error.name === 'BlobNotFoundError');
+        console.log("Struktur error lengkap:", JSON.stringify(error, null, 2));
+        console.log("--- END DEBUGGING ---");
+        // ------------------------------------
+
         if (error.name !== 'BlobNotFoundError') {
-            // Jika errornya BUKAN karena file tidak ditemukan, baru laporkan sebagai 500
             console.error('Vercel Blob head error:', error);
             return res.status(500).json({ error: 'Gagal cek cache PDF' });
         }
-        // Jika errornya ADALAH BlobNotFoundError, kita biarkan saja dan lanjut ke proses di bawah
     }
 
     console.log(`Optimized PDF CACHE MISS for ${fileId}. Processing...`);
