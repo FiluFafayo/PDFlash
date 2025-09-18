@@ -19,22 +19,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        // Fetch dengan redirect handling
+        // Tambahkan timeout untuk fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 detik timeout
+        
         const response = await fetch(`/api/get-page?fileId=${fileId}&page=1`, { 
-            redirect: 'follow' 
+            redirect: 'follow',
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) throw new Error('Gagal memuat halaman pertama.');
         
-        // Simpan total pages dari header jika belum ada di cache
         if (!totalPages) {
             totalPages = parseInt(response.headers.get('X-Total-Pages'));
-            localStorage.setItem(storageKey, totalPages);
+            if (totalPages) localStorage.setItem(storageKey, totalPages);
         }
         
         const firstPageBlob = await response.blob();
         
-        // Inisialisasi swiper dengan total pages
+        // Buat array untuk tracking object URLs
+        const objectUrls = [];
+        
+        // Cleanup function untuk revoke object URLs
+        const cleanup = () => {
+            objectUrls.forEach(url => URL.revokeObjectURL(url));
+            objectUrls.length = 0;
+        };
+        
+        // Cleanup saat page unload
+        window.addEventListener('beforeunload', cleanup);
+        
+        // Handle first page
+        const firstPageUrl = URL.createObjectURL(firstPageBlob);
+        objectUrls.push(firstPageUrl);
+        
         for (let i = 1; i <= totalPages; i++) {
             const slide = document.createElement('div');
             slide.className = 'swiper-slide';
@@ -42,7 +62,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (i === 1) {
                 const img = document.createElement('img');
-                img.src = URL.createObjectURL(firstPageBlob);
+                img.src = firstPageUrl;
+                img.onload = () => URL.revokeObjectURL(firstPageUrl); // Revoke setelah load
                 slide.appendChild(img);
             } else {
                 slide.innerHTML = `<p style="color:#888;">Page ${i}</p>`;
@@ -68,34 +89,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             activeSlide.innerHTML = `<p style="color:#888;">Loading page ${pageNum}...</p>`;
             
             try {
-                // Fetch dengan redirect handling untuk halaman lainnya
+                const pageController = new AbortController();
+                const pageTimeoutId = setTimeout(() => pageController.abort(), 30000);
+                
                 const pageResponse = await fetch(`/api/get-page?fileId=${fileId}&page=${pageNum}`, { 
-                    redirect: 'follow' 
+                    redirect: 'follow',
+                    signal: pageController.signal
                 });
+                
+                clearTimeout(pageTimeoutId);
                 
                 if (!pageResponse.ok) throw new Error('Gagal memuat halaman.');
                 
+                const pageBlob = await pageResponse.blob();
+                const pageUrl = URL.createObjectURL(pageBlob);
+                objectUrls.push(pageUrl);
+                
                 const img = document.createElement('img');
-                img.src = URL.createObjectURL(await pageResponse.blob());
+                img.src = pageUrl;
                 
                 img.onload = () => {
                     activeSlide.innerHTML = '';
                     activeSlide.appendChild(img);
+                    URL.revokeObjectURL(pageUrl); // Revoke setelah load
                 };
                 
                 img.onerror = () => {
                     activeSlide.innerHTML = `<p style="color:red;">Gagal memuat halaman ${pageNum}</p>`;
+                    URL.revokeObjectURL(pageUrl);
                 };
             } catch (error) {
-                activeSlide.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+                if (error.name === 'AbortError') {
+                    activeSlide.innerHTML = `<p style="color:orange;">Request timeout</p>`;
+                } else {
+                    activeSlide.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+                }
             }
         });
         
         loader.style.display = 'none';
 
     } catch (error) {
-        console.error(error);
-        swiperWrapper.innerHTML = `<p style="color:red; text-align:center;">Error: ${error.message}</p>`;
+        console.error('Viewer error:', error);
+        if (error.name === 'AbortError') {
+            swiperWrapper.innerHTML = `<p style="color:orange; text-align:center;">Request timeout. Coba lagi.</p>`;
+        } else {
+            swiperWrapper.innerHTML = `<p style="color:red; text-align:center;">Error: ${error.message}</p>`;
+        }
         loader.style.display = 'none';
     }
 });
