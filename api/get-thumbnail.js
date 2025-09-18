@@ -1,11 +1,11 @@
 import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
-import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
 import { createCanvas, DOMMatrix } from 'canvas';
 import { pipeline } from 'stream/promises';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
 
 // ==========================================================
 // DEFINISI FUNGSI DAN HELPER KITA LETAKKAN DI ATAS
