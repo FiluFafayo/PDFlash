@@ -17,16 +17,25 @@ export default async function handler(req, res) {
         });
         const drive = google.drive({ version: 'v3', auth });
 
-        const response = await drive.files.list({
-            // Ambil SEMUA item (PDF dan Folder) di dalam folderId
-            q: `'${folderId}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.google-apps.folder')`,
-            // Kita butuh mimeType untuk membedakan item
-            fields: 'files(id, name, mimeType)',
-            orderBy: 'folder, name', // Urutkan folder dulu, baru file
-        });
-        
-        // Langsung kirim apa adanya
-        res.status(200).json(response.data.files);
+        let allFiles = [];
+        let pageToken = null;
+
+        // Loop untuk mengambil semua halaman hasil (pagination)
+        do {
+            const response = await drive.files.list({
+                q: `'${folderId}' in parents and (mimeType='application/pdf' or mimeType='application/vnd.google-apps.folder')`,
+                // Minta thumbnailLink, ini kuncinya!
+                fields: 'nextPageToken, files(id, name, mimeType, thumbnailLink)',
+                orderBy: 'folder, name',
+                pageSize: 1000, // Ambil sebanyak mungkin dalam satu request
+                pageToken: pageToken,
+            });
+
+            allFiles = allFiles.concat(response.data.files);
+            pageToken = response.data.nextPageToken;
+        } while (pageToken);
+
+        res.status(200).json(allFiles);
 
     } catch (error) {
         console.error('Error in get-files:', error);

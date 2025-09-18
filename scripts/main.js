@@ -7,11 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const historySection = document.getElementById('history-section');
     const historyList = document.getElementById('history-list');
 
-    // --- LOGIKA BARU: CACHING & RIWAYAT ---
     const CACHE_KEY = 'pdflash_cache';
     const HISTORY_KEY = 'pdflash_history';
     
-    // Ambil data dari localStorage atau buat objek/array kosong baru
     let fileCache = JSON.parse(localStorage.getItem(CACHE_KEY)) || {};
     let folderHistory = JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
 
@@ -25,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 link.textContent = folder.name;
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    loadFolder(folder.id, true); // Load sebagai root folder
+                    loadFolder(folder.id, true);
                 });
                 historyList.appendChild(link);
             });
@@ -33,17 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const addToHistory = (folderId, folderName) => {
-        // Hapus entri lama jika ada untuk menghindari duplikat
         folderHistory = folderHistory.filter(f => f.id !== folderId);
-        // Tambahkan yang baru ke paling depan
         folderHistory.unshift({ id: folderId, name: folderName });
-        // Batasi riwayat hanya 5 item terakhir
         folderHistory = folderHistory.slice(0, 5);
-        // Simpan ke localStorage
         localStorage.setItem(HISTORY_KEY, JSON.stringify(folderHistory));
         renderHistory();
     };
-    // --- AKHIR LOGIKA BARU ---
 
     let navigationStack = [];
 
@@ -84,7 +77,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (item.mimeType === 'application/pdf') {
                     card.addEventListener('click', () => { window.location.href = `/viewer.html?fileId=${item.id}`; });
                     const thumbnailImg = document.createElement('img');
-                    thumbnailImg.src = `/api/get-thumbnail?fileId=${item.id}`;
+                    
+                    // --- INI BAGIAN YANG DIUBAH ---
+                    // Langsung pakai thumbnailLink dari Google.
+                    // Tambahkan .replace untuk meminta gambar resolusi lebih tinggi jika perlu.
+                    if (item.thumbnailLink) {
+                         thumbnailImg.src = item.thumbnailLink.replace(/=s220$/, '=s480');
+                    } else {
+                        // Jika tidak ada thumbnail, bisa tampilkan placeholder
+                        // thumbnailImg.src = '/placeholder.svg';
+                    }
+                    // --- AKHIR BAGIAN YANG DIUBAH ---
+
                     thumbnailDiv.appendChild(thumbnailImg);
                 } else if (item.mimeType === 'application/vnd.google-apps.folder') {
                     card.addEventListener('click', () => {
@@ -111,27 +115,24 @@ document.addEventListener('DOMContentLoaded', () => {
         loader.style.display = 'block';
         pdfGrid.innerHTML = '';
 
-        // --- LOGIKA BARU: Cek Cache Dulu! ---
         if (fileCache[folderId]) {
             console.log(`Cache hit for folder ${folderId}. Loading from cache.`);
             const items = fileCache[folderId];
             
-            // Logika navigasi & URL tetap dijalankan
             const newUrl = `/?folderId=${folderId}`;
             if (window.location.search !== `?folderId=${folderId}`) {
                 window.history.pushState({ folderId }, '', newUrl);
             }
             if (isRoot) {
-                navigationStack = [{ id: folderId, name: 'Home' }];
+                navigationStack = [{ id: folderId, name: 'Home' }]; // Tetap 'Home' atau ambil nama folder nanti
             }
             renderBreadcrumbs();
-            addToHistory(folderId, navigationStack[navigationStack.length-1].name);
+            addToHistory(folderId, navigationStack[navigationStack.length - 1].name);
 
             renderGrid(items);
             loader.style.display = 'none';
-            return; // Selesai! Tidak perlu fetch.
+            return;
         }
-        // --- AKHIR LOGIKA BARU ---
         
         console.log(`Cache miss for folder ${folderId}. Fetching from API...`);
         try {
@@ -139,11 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Gagal memuat daftar file.');
             const items = await response.json();
 
-            // Simpan ke cache setelah berhasil fetch
             fileCache[folderId] = items;
             localStorage.setItem(CACHE_KEY, JSON.stringify(fileCache));
 
-            // Logika navigasi & URL (sama seperti di atas)
             const newUrl = `/?folderId=${folderId}`;
             if (window.location.search !== `?folderId=${folderId}`) {
                 window.history.pushState({ folderId }, '', newUrl);
@@ -181,6 +180,5 @@ document.addEventListener('DOMContentLoaded', () => {
         loadFolder(initialFolderId, true);
     }
 
-    // Tampilkan riwayat saat halaman pertama kali dimuat
     renderHistory();
 });

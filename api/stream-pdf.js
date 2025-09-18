@@ -1,14 +1,5 @@
-import { head, put } from '@vercel/blob';
 import { google } from 'googleapis';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
-import { pipeline } from 'stream/promises';
-import { createReadStream } from 'fs'; // Dibutuhkan untuk streaming upload
-
-const execFileAsync = promisify(execFile);
+import { Readable } from 'stream';
 
 export default async function handler(req, res) {
     const { fileId } = req.query;
@@ -16,29 +7,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'File ID tidak ditemukan' });
     }
 
-    const optimizedPdfPath = `optimized/${fileId}.pdf`;
-
     try {
-        const blob = await head(optimizedPdfPath);
-        console.log(`Optimized PDF CACHE HIT for ${fileId}`);
-        return res.redirect(307, blob.url);
-    } catch (error) {
-        // KONDISI BARU: Cek isi pesan errornya
-        if (!error.message.includes('The requested blob does not exist')) {
-            // Jika pesan error TIDAK mengandung teks ini, baru laporkan 500
-            console.error('Vercel Blob head error:', error);
-            return res.status(500).json({ error: 'Gagal cek cache PDF' });
-        }
-        // Jika mengandung teks itu, berarti cache miss dan kita lanjutkan proses
-    }
-
-    console.log(`Optimized PDF CACHE MISS for ${fileId}. Processing...`);
-
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf-'));
-    const originalPath = path.join(tempDir, 'original.pdf');
-    const optimizedPath = path.join(tempDir, 'optimized.pdf');
-
-    try {
+        // --- LANGKAH 1: Otentikasi dan dapatkan Access Token ---
         const auth = new google.auth.GoogleAuth({
             credentials: {
                 client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -46,47 +16,49 @@ export default async function handler(req, res) {
             },
             scopes: ['https://www.googleapis.com/auth/drive.readonly'],
         });
-        const drive = google.drive({ version: 'v3', auth });
+        const accessToken = await auth.getAccessToken();
 
-        // Download file utuh dari Google Drive
-        const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
-        await pipeline(response.data, require('fs').createWriteStream(originalPath));
+        // --- LANGKAH 2: Siapkan request ke Google Drive API ---
+        const driveApiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
         
-        // --- BAGIAN YANG DIPERBAIKI ---
-        const binaryDir = path.join(process.cwd(), 'api', '_bin');
-        const qpdfPath = path.join(binaryDir, 'qpdf');
+        // Ambil header 'Range' dari permintaan browser, jika ada
+        const range = req.headers.range;
 
-        // Fungsi untuk optimasi PDF dengan qpdf dari lokasi lokal
-        const optimizePdf = async () => {
-            await execFileAsync(
-                qpdfPath, // Jalankan qpdf dari path spesifik kita
-                ['--linearize', originalPath, optimizedPath],
-                {
-                    // Beritahu qpdf di mana "onderdil"-nya berada
-                    env: { ...process.env, 'LD_LIBRARY_PATH': binaryDir }
-                }
-            );
+        const driveRequestHeaders = {
+            'Authorization': `Bearer ${accessToken}`,
         };
+        if (range) {
+            driveRequestHeaders['Range'] = range; // Teruskan permintaan 'potongan'
+        }
 
-        // HANYA jalankan optimasi PDF
-        await optimizePdf();
-        
-        // Upload hasilnya ke Vercel Blob menggunakan stream
-        const optimizedFileStream = createReadStream(optimizedPath);
-        const uploadedPdf = await put(optimizedPdfPath, optimizedFileStream, {
-            access: 'public',
-            cacheControl: 'public, max-age=31536000, immutable'
+        // --- LANGKAH 3: Lakukan fetch ke Google dan stream hasilnya ---
+        const driveResponse = await fetch(driveApiUrl, {
+            headers: driveRequestHeaders,
         });
+
+        if (!driveResponse.ok) {
+            const errorBody = await driveResponse.json();
+            console.error('Google Drive API error:', errorBody);
+            return res.status(driveResponse.status).json({ error: 'Gagal mengambil file dari Google Drive', details: errorBody });
+        }
         
-        console.log(`Successfully optimized and uploaded PDF for ${fileId}`);
+        // --- LANGKAH 4: Kirim balik header & body ke browser ---
+        // Salin header penting dari Google ke respons kita
+        res.setHeader('Content-Type', driveResponse.headers.get('content-type'));
+        res.setHeader('Content-Length', driveResponse.headers.get('content-length'));
+        if (driveResponse.headers.get('content-range')) {
+             res.setHeader('Content-Range', driveResponse.headers.get('content-range'));
+        }
+        res.setHeader('Accept-Ranges', 'bytes');
         
-        res.redirect(307, uploadedPdf.url);
-        // --- AKHIR BAGIAN YANG DIPERBAIKI ---
+        // Jika ada 'range', statusnya 206 (Partial Content). Jika tidak, 200 (OK).
+        res.status(driveResponse.status);
+
+        // Alirkan body dari respons Google langsung ke browser. Inilah intinya!
+        Readable.fromWeb(driveResponse.body).pipe(res);
 
     } catch (error) {
-        console.error('PDF processing error:', error);
-        res.status(500).json({ error: 'Gagal memproses PDF.', details: error.message });
-    } finally {
-        await fs.rm(tempDir, { recursive: true, force: true });
+        console.error('Proxy stream error:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan internal saat streaming PDF', details: error.message });
     }
 }
