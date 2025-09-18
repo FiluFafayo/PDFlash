@@ -6,16 +6,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { pipeline } from 'stream/promises';
-import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
-import { createCanvas, DOMMatrix } from 'canvas';
-
-// Helper class untuk pdf.js di server
-class NodeCanvasFactory {
-    create(width, height) { const canvas = createCanvas(width, height); return { canvas, context: canvas.getContext("2d") }; }
-    reset(canvasAndContext, width, height) { canvasAndContext.canvas.width = width; canvasAndContext.canvas.height = height; }
-    destroy(canvasAndContext) { canvasAndContext.canvas.width = 0; canvasAndContext.canvas.height = 0; canvasAndContext.canvas = null; canvasAndContext.context = null; }
-}
-global.DOMMatrix = DOMMatrix;
+import { createReadStream } from 'fs'; // Dibutuhkan untuk streaming upload
 
 const execFileAsync = promisify(execFile);
 
@@ -28,16 +19,18 @@ export default async function handler(req, res) {
     const optimizedPdfPath = `optimized/${fileId}.pdf`;
 
     try {
-        // 1. Cek cache dulu, kalau ada langsung berikan
         const blob = await head(optimizedPdfPath);
+        console.log(`Optimized PDF CACHE HIT for ${fileId}`);
         return res.redirect(307, blob.url);
     } catch (error) {
         if (error.status !== 404) {
+            console.error('Vercel Blob head error:', error);
             return res.status(500).json({ error: 'Gagal cek cache PDF' });
         }
     }
 
-    // 2. Jika tidak ada di cache, kita proses
+    console.log(`Optimized PDF CACHE MISS for ${fileId}. Processing...`);
+
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf-'));
     const originalPath = path.join(tempDir, 'original.pdf');
     const optimizedPath = path.join(tempDir, 'optimized.pdf');
@@ -53,41 +46,22 @@ export default async function handler(req, res) {
         const drive = google.drive({ version: 'v3', auth });
 
         // Download file utuh dari Google Drive
-        const response = await drive.files.get({ fileId: fileId, alt: 'media' }, { responseType: 'stream' });
+        const response = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
         await pipeline(response.data, require('fs').createWriteStream(originalPath));
         
-        const thumbnailBlobPath = `thumbnails/${fileId}.jpeg`;
-
-        // Fungsi untuk membuat thumbnail
-        const generateThumbnail = async () => {
-            const doc = await pdfjsLib.getDocument(originalPath).promise;
-            const page = await doc.getPage(1);
-            const viewport = page.getViewport({ scale: 0.3 });
-            const canvasFactory = new NodeCanvasFactory();
-            const { canvas, context } = canvasFactory.create(viewport.width, viewport.height);
-            await page.render({ canvasContext: context, viewport, canvasFactory }).promise;
-            return canvas.toBuffer('image/jpeg', { quality: 50 });
-        };
-
-        // Fungsi untuk optimasi PDF dengan qpdf
-        const optimizePdf = async () => {
-            await execFileAsync('qpdf', ['--linearize', originalPath, optimizedPath]);
-            return fs.readFile(optimizedPath);
-        };
-
-        // 3. Jalankan kedua proses pembuatan
-        const [thumbnailBuffer, optimizedPdfBuffer] = await Promise.all([
-            generateThumbnail(),
-            optimizePdf()
-        ]);
+        // HANYA jalankan optimasi PDF
+        await execFileAsync('qpdf', ['--linearize', originalPath, optimizedPath]);
         
-        // 4. Upload hasilnya ke Vercel Blob untuk disimpan permanen
-        const [uploadedThumbnail, uploadedPdf] = await Promise.all([
-            put(thumbnailBlobPath, thumbnailBuffer, { access: 'public', cacheControl: 'public, max-age=31536000, immutable' }),
-            put(optimizedPdfPath, optimizedPdfBuffer, { access: 'public', cacheControl: 'public, max-age=31536000, immutable' })
-        ]);
+        // Upload hasilnya ke Vercel Blob menggunakan stream agar hemat memori
+        const optimizedFileStream = createReadStream(optimizedPath);
+        const uploadedPdf = await put(optimizedPdfPath, optimizedFileStream, {
+            access: 'public',
+            cacheControl: 'public, max-age=31536000, immutable'
+        });
         
-        // 5. Arahkan pengguna ke PDF yang sudah optimal
+        console.log(`Successfully optimized and uploaded PDF for ${fileId}`);
+        
+        // Arahkan pengguna ke PDF yang sudah optimal
         res.redirect(307, uploadedPdf.url);
 
     } catch (error) {

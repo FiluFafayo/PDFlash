@@ -1,21 +1,19 @@
-import { head } from '@vercel/blob';
-import { createCanvas } from 'canvas';
+import { head, put } from '@vercel/blob';
+import { google } from 'googleapis';
+import pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import { createCanvas, DOMMatrix } from 'canvas';
+import { pipeline } from 'stream/promises';
+import fs from 'fs/promises';
+import path from 'path';
+import os from 'os';
 
-// Fungsi untuk membuat placeholder jika thumbnail belum ada
-function createPlaceholderImage() {
-    const canvas = createCanvas(200, 280);
-    const context = canvas.getContext('2d');
-    context.fillStyle = '#f0f0f0';
-    context.fillRect(0, 0, 200, 280);
-    context.strokeStyle = '#ddd';
-    context.strokeRect(0, 0, 200, 280);
-    context.fillStyle = '#999';
-    context.font = '14px Arial';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('Loading preview...', 100, 140);
-    return canvas.toBuffer('image/jpeg', { quality: 50 });
+// Helper class untuk pdf.js di server
+class NodeCanvasFactory {
+    create(width, height) { const canvas = createCanvas(width, height); return { canvas, context: canvas.getContext("2d") }; }
+    reset(canvasAndContext, width, height) { canvasAndContext.canvas.width = width; canvasAndContext.canvas.height = height; }
+    destroy(canvasAndContext) { canvasAndContext.canvas.width = 0; canvasAndContext.canvas.height = 0; canvasAndContext.canvas = null; canvasAndContext.context = null; }
 }
+global.DOMMatrix = DOMMatrix;
 
 export default async function handler(req, res) {
     const { fileId } = req.query;
@@ -26,20 +24,59 @@ export default async function handler(req, res) {
     const blobPath = `thumbnails/${fileId}.jpeg`;
 
     try {
-        // Cek cache dan langsung redirect jika ada
+        // Cek cache dulu, kalau ada langsung berikan
         const blob = await head(blobPath);
+        console.log(`Thumbnail CACHE HIT for ${fileId}`);
         return res.redirect(307, blob.url);
     } catch (error) {
-        // Jika tidak ada (404), artinya PDF belum pernah dibuka.
-        if (error.status === 404) {
-            const placeholder = createPlaceholderImage();
-            res.setHeader('Content-Type', 'image/jpeg');
-            // Jangan cache placeholder terlalu lama agar browser mau cek lagi nanti
-            res.setHeader('Cache-Control', 'public, max-age=60'); 
-            return res.status(200).send(placeholder);
+        if (error.status !== 404) {
+            console.error('Vercel Blob head error:', error);
+            return res.status(500).json({ error: 'Gagal cek cache thumbnail' });
         }
+    }
+
+    console.log(`Thumbnail CACHE MISS for ${fileId}. Generating...`);
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pdf-thumb-'));
+    const tempFilePath = path.join(tempDir, 'temp.pdf');
+
+    try {
+        const auth = new google.auth.GoogleAuth({
+            credentials: {
+                client_email: process.env.GOOGLE_CLIENT_EMAIL,
+                private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            },
+            scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+        });
+        const drive = google.drive({ version: 'v3', auth });
+
+        // Download file utuh dari Google Drive ke file temporary
+        const response = await drive.files.get({ fileId: fileId, alt: 'media' }, { responseType: 'stream' });
+        await pipeline(response.data, require('fs').createWriteStream(tempFilePath));
         
-        console.error('Vercel Blob head error:', error);
-        return res.status(500).json({ error: 'Gagal cek cache thumbnail' });
+        // Buat thumbnail dari file temporary
+        const doc = await pdfjsLib.getDocument(tempFilePath).promise;
+        const page = await doc.getPage(1);
+        const viewport = page.getViewport({ scale: 0.3 });
+        const canvasFactory = new NodeCanvasFactory();
+        const { canvas, context } = canvasFactory.create(viewport.width, viewport.height);
+        await page.render({ canvasContext: context, viewport, canvasFactory }).promise;
+        const imageBuffer = canvas.toBuffer('image/jpeg', { quality: 50 });
+        
+        // Upload thumbnail ke Vercel Blob
+        const uploadedBlob = await put(blobPath, imageBuffer, {
+            access: 'public',
+            cacheControl: 'public, max-age=31536000, immutable'
+        });
+
+        // Kirim thumbnail yang baru dibuat (atau redirect)
+        res.setHeader('Content-Type', 'image/jpeg');
+        return res.status(200).send(imageBuffer);
+
+    } catch (error) {
+        console.error(`Failed to generate thumbnail for ${fileId}:`, error);
+        // Jika gagal, bisa kirim placeholder atau error
+        res.status(500).json({ error: 'Gagal membuat thumbnail' });
+    } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
     }
 }
