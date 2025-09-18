@@ -8,17 +8,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // --- TAMBAHKAN BLOK KODE INI UNTUK DEBUGGING ---
-        console.log("--- DEBUGGING ENV VARIABLES ---");
-        const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-        const privateKey = process.env.GOOGLE_PRIVATE_KEY;
-        console.log(`CLIENT_EMAIL: ${clientEmail}`);
-        console.log(`PRIVATE_KEY length: ${privateKey ? privateKey.length : 'NOT FOUND'}`);
-        console.log(`PRIVATE_KEY starts with: ${privateKey ? privateKey.slice(0, 30) : 'N/A'}`);
-        console.log(`PRIVATE_KEY ends with: ${privateKey ? privateKey.slice(-30) : 'N/A'}`);
-        console.log("-------------------------------");
-        // --- AKHIR BLOK KODE DEBUGGING ---
-        
         // --- LANGKAH 1: Otentikasi dan dapatkan Access Token ---
         const auth = new google.auth.GoogleAuth({
             credentials: {
