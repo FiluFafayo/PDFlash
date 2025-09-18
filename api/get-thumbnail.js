@@ -24,15 +24,22 @@ export default async function handler(req, res) {
     const blobPath = `thumbnails/${fileId}.jpeg`;
 
     try {
-        // Cek cache dulu, kalau ada langsung berikan
+        // Cek cache dan langsung redirect jika ada
         const blob = await head(blobPath);
-        console.log(`Thumbnail CACHE HIT for ${fileId}`);
         return res.redirect(307, blob.url);
     } catch (error) {
-        if (error.status !== 404) {
-            console.error('Vercel Blob head error:', error);
-            return res.status(500).json({ error: 'Gagal cek cache thumbnail' });
+        // Jika tidak ada (404), artinya PDF belum pernah dibuka.
+        // GANTI KONDISI DI BAWAH INI
+        if (error.name === 'BlobNotFoundError') {
+            const placeholder = createPlaceholderImage();
+            res.setHeader('Content-Type', 'image/jpeg');
+            res.setHeader('Cache-Control', 'public, max-age=60'); 
+            return res.status(200).send(placeholder);
         }
+        
+        // Jika errornya BUKAN karena file tidak ditemukan, baru laporkan sebagai 500
+        console.error('Vercel Blob head error:', error);
+        return res.status(500).json({ error: 'Gagal cek cache thumbnail' });
     }
 
     console.log(`Thumbnail CACHE MISS for ${fileId}. Generating...`);

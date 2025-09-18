@@ -19,14 +19,18 @@ export default async function handler(req, res) {
     const optimizedPdfPath = `optimized/${fileId}.pdf`;
 
     try {
+        // 1. Cek cache dulu, kalau ada langsung berikan
         const blob = await head(optimizedPdfPath);
         console.log(`Optimized PDF CACHE HIT for ${fileId}`);
         return res.redirect(307, blob.url);
     } catch (error) {
-        if (error.status !== 404) {
+        // GANTI KONDISI DI BAWAH INI
+        if (error.name !== 'BlobNotFoundError') {
+            // Jika errornya BUKAN karena file tidak ditemukan, baru laporkan sebagai 500
             console.error('Vercel Blob head error:', error);
             return res.status(500).json({ error: 'Gagal cek cache PDF' });
         }
+        // Jika errornya ADALAH BlobNotFoundError, kita biarkan saja dan lanjut ke proses di bawah
     }
 
     console.log(`Optimized PDF CACHE MISS for ${fileId}. Processing...`);
